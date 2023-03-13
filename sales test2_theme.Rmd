@@ -1,0 +1,507 @@
+---
+title: "Running Ahead: An Examination of Adidas' Sales Trends Across US Regions"
+author: "Giyani Shangase"
+date: "2023-03-08"
+output: 
+ cleanrmd::html_document_clean:
+   theme: picocss
+---  
+
+```{r echo=FALSE}
+knitr::include_graphics("C:/Users/giyan/OneDrive/Documents/Adidas Sales/adidas-gfd3b8ad2f_1920.jpg")
+```
+
+\
+This analysis seeks to learn valuable insights from the Adidas Sales dataset, which shows sales performance of different product categories across the 5 regions of the USA and 6 retailers which are represented in the data.  
+
+The goal of this analysis is to understand consumer buying trends, gain insights into which product categories perform well in different retailers, and to understand how these trends differ throughout the USA.  
+
+**The key metrics for this study are:**    
+• Total Sales by retailer\
+• Total Profit by retailers\
+• Sales performance of different sales categories\
+• Operating margin of different products\  
+
+**Business Questions**    
+There are two business questions to be answered in this analysis:\
+1. Which retailer had the highest total sales and profit for each region and what was their profit margin for Adidas products?\
+2. Which product categories have the highest sales and profit margin in each region?\  
+
+The answers to these questions can be used to:\
+• Identify high-performing retailers and understand what drives their sales performance, and assess whether this information can be used to improve sales and profitability across all retailers.\
+• Inform sales and marketing strategy based on performance of different product categories across all regions.\
+• Inform inventory and staffing decisions based on past sales performance and costs of doing business for each retailer.  
+
+**Data Source**  
+The data used in this analysis is available publicly on Kaggle.com. This dataset contains all of the key information needed to answer the business questions above, and to provide further insights into sales performance and profit across all retailers and regions.\
+\
+Source: https://www.kaggle.com/datasets/heemalichaudhari/adidas-sales-dataset \
+\
+The data is organised as follows:\
+• Retailer ID\
+• Invoice date\
+• Region\
+• State\
+• City\
+• Product category\
+• Price per unit\
+• Units sold\
+• Total sales\
+• Operating profit\
+• Operating margin\
+• Sales method\  
+
+There are no privacy, security or licensing issues with this dataset as it is publicly available. The dataset has been used by many other analysts and cited repeatedly which is a verification of the integrity of the data.  
+This dataset helps to answer the business question as it has the key metrics, measured by retailer and region for all sales across the United States.    
+The dataset contains data for two years, 2020 and 2021. I have decided to use only 2021 sales as I feel this is a more accurate representation of sales under normal conditions. Sales in 2020 were heavily skewed towards retailers who operated online across all industries due to the pandemic, making the sales data from the year less useful for predicting consumer behaviour in other years.  
+
+#### Exploratory Data Analysis  
+
+**Tools**  
+
+All analysis and visualisations in this project was done on R and R Studio.  
+
+The following packages were used in the data cleaning process:\
+• Tidyverse\
+• Lubridate\
+• Skimr\
+• Here\
+• Janitor  
+
+**Load data**  
+```{r echo = TRUE}
+library(readxl)
+sales_data <- read_excel("Adidas US Sales Datasets.xlsx")
+```
+
+
+**Data Cleaning**  
+
+Data cleaning for this project involved the following steps:\
+
+Loading Packages for cleaning and analysis\
+```{r packages, echo=TRUE, message=FALSE}
+library(tidyverse)
+library(skimr)
+library(here)
+library(janitor)
+library(lubridate)
+library(knitr)
+library(scales)
+library(gridExtra)
+```
+
+• Renaming column names using the rename() function to ensure uniformity and consistency, making it clear which variable each column is showing.
+```{r analysis, echo=TRUE}
+sales_data <- rename(sales_data, total_sales = `Total Sales`,
+                     operating_profit = `Operating Profit`,
+                     retailer_id = `Retailer ID`, 
+                     invoice_date = `Invoice Date`,
+                     price_per_unit = `Price per Unit`,
+                     units_sold = `Units Sold`,
+                     operating_margin = `Operating Margin`,
+                     sales_method = `Sales Method`)
+
+sales_data <- rename(sales_data, region = Region,
+                     retailer = Retailer,
+                     state = State,
+                     city = City,
+                     product = Product)
+```
+
+•	Creating a new column showing the operating margin as a percentage. The original column shows the value as a decimal value with 100% being 1.0.\
+```{r operating margin col, echo=TRUE}
+sales_data <- sales_data %>% 
+  mutate(margin_percentage = operating_margin*100)
+
+```
+
+• Using as.Date() function to change date to correct format.\
+```{r filter to 2021, echo=TRUE}
+ sales_data <- sales_data %>% 
+  select(retailer, total_sales, region, product, operating_margin, invoice_date, sales_method, operating_profit, retailer_id) %>% 
+  filter(invoice_date >= as.Date("2021-01-01"))
+```
+
+• Using unique() function to remove duplicates.\
+```{r remove duplicates, echo=TRUE}
+ sales_data <- unique(sales_data) 
+```
+
+•Viewing column names and structure of data with colnames() and skim_without_charts() functions.
+```{r column names, echo=TRUE, results='hide'}
+colnames(sales_data)
+skim_without_charts(sales_data)
+```
+
+##### Retailer Sales Performance Analysis  
+
+• Creating sales_2021 data frame
+```{r sales data, echo=TRUE}
+sales_2021 <- sales_data %>% 
+  select(retailer, total_sales, region, product, operating_margin, invoice_date, 
+         sales_method, operating_profit, retailer_id) %>% 
+  filter(invoice_date >= as.Date("2021-01-01"))
+View(sales_2021)
+
+```
+  
+  
+• Calculating total sales and profit for each retailer by region
+```{r total sales, echo=TRUE, message=FALSE, results='hide'}
+retailer_sales_2021 <- sales_2021 %>% 
+  group_by(region, retailer) %>% 
+  summarize(total_sales_millions = sum(total_sales)/1000000,
+            operating_profit_millions = sum(operating_profit/1000000),
+            operating_margin_percent = mean(operating_margin)*100) %>% 
+  print(n = 30)
+
+```
+  
+  
+• Calculating retailers with the highest sales in each region
+```{r top retailers, message=FALSE, warning=FALSE, results='markup'}
+top_product_sales_2021 <- sales_2021 %>% 
+  group_by(region, retailer) %>% 
+  summarize(total_sales_millions = sum(total_sales)/1000000,
+            operating_profit_millions = sum(operating_profit)/1000000,
+            operating_margin_percent = mean(operating_margin*100)) %>% 
+  group_by(region) %>% 
+  slice_max(total_sales_millions, n = 1, with_ties = FALSE) %>% 
+  select(region, retailer, total_sales_millions, operating_margin_percent, operating_profit_millions) %>% 
+  arrange(-total_sales_millions)
+ knitr::kable(top_product_sales_2021)
+```
+  
+• Calculating retailers with the highest operating margin in each region
+```{r top margins, message=FALSE, warning=FALSE, results='markup'}
+top_product_margin_2021 <- sales_2021 %>% 
+  group_by(region, retailer) %>% 
+  summarize(total_sales_millions = sum(total_sales)/1000000,
+            operating_profit_millions = sum(operating_profit)/1000000,
+            operating_margin_percent = mean(operating_margin*100)) %>% 
+  group_by(region) %>% 
+  slice_max(operating_margin_percent, n = 1, with_ties = FALSE) %>% 
+  select(region, retailer, total_sales_millions, operating_margin_percent, operating_profit_millions) %>% 
+  arrange(-total_sales_millions)
+ knitr::kable(top_product_margin_2021)
+```
+  
+    
+##### Product category sales analysis  
+
+• Calculating total sales, operating profit and operating margin for each product category across all regions
+```{r total product sales, message=FALSE, echo=TRUE}
+product_sales_2021 <- sales_2021 %>% 
+  group_by(region, product) %>% 
+  summarize(total_sales_m = sum(total_sales)/1000000,
+            total_profit_m = sum(operating_profit)/1000000,
+            operating_margin_percent = mean(operating_margin)*100) %>% 
+  group_by(region) %>% 
+  select(product, region, operating_margin_percent,total_sales_m, total_profit_m)
+
+```
+
+  
+• Calculating product categories with the highest sales in each region
+```{r echo=TRUE, results='asis', message=FALSE}
+top_product_sales_2021 <- sales_2021 %>% 
+  group_by(region, product) %>%
+summarize(product_sales_millions = sum(total_sales/1000000),
+          product_profit_millions = sum(operating_profit/1000000),
+          margin_percent = mean(operating_margin*100)) %>% 
+  group_by(region) %>% 
+  slice_max(product_sales_millions, n = 1, with_ties = FALSE) %>% 
+  select(region, product, product_sales_millions, product_profit_millions, margin_percent)
+knitr::kable(top_product_sales_2021)
+```
+  
+• Calculating product categories with highest operating margin in each region
+```{r echo=FALSE, message=FALSE, results='asis'}
+top_product_operating_margin <- sales_2021 %>% 
+  group_by(region, product) %>%
+  summarize(product_sales_millions = sum(total_sales/1000000),
+            product_profit_millions = sum(operating_profit/1000000),
+            margin_percent = mean(operating_margin*100)) %>% 
+  group_by(region) %>% 
+  slice_max(margin_percent, n = 1, with_ties = FALSE) %>% 
+  select(region, product, product_sales_millions, product_profit_millions, margin_percent) %>% 
+  arrange(-margin_percent)
+knitr::kable(top_product_operating_margin)
+```
+  
+  
+#### Key Findings  
+
+The insights gained from the analysis above were crucial in answering both business questions posed in this project, as the they provided a clear summary of the story that the data was telling.  
+\
+
+1.	*Which retailer had the highest total sales and profit for each region? What is their profit margin?*  
+\
+\
+```{r echo=TRUE}
+ggplot(data = retailer_sales_2021, aes(x = retailer, y = total_sales_millions, fill = retailer)) +
+  geom_col() +
+  scale_y_continuous(labels = dollar_format()) +
+  labs(x = "Retailer", y = "Sales (millions)", fill = "Retailer") +
+  ggtitle("Total Retailer Sales by Region") +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        plot.title = element_text(size = 14, face = "bold"),
+        axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.title.y = element_text(size = 12),
+        legend.title = element_blank(),
+        legend.text = element_text(size = 10)) +
+  facet_wrap(~region)
+
+```
+\
+\
+  •	**Kohl’s** in the **West** region had the highest total sales by a single retailer at **$62.3 million.**,        with a profit margin of **40.3%**.\
+  •	**Footlocker** has the most total sales across across Midwest, Southeast and Northeast regions, with a combined value of over **$130 million.**\
+  •	**Sports Direct** in the **South** region has total sales of **$60.4 million**, with an operating margin of      **50.6%** and operating profit of **$28.1 million**  from Adidas products during 2021.\
+   
+  
+  Retailers with the top sales across each region:  
+  
+    • West: Kohl's -    $62.3 million
+    • South: Sports Direct -    $60.4 million
+    • Southeast: Foot Locker -    $50.1 million
+    • Midwest: Foot Locker -    $41.4 million
+    • Northeast: Foot Locker -    $40.1 million  
+\
+\
+\
+```{r echo=FALSE}
+ggplot(data = retailer_sales_2021, aes(x = retailer, y = operating_margin_percent/100, fill = retailer)) +
+  geom_col() +
+  scale_y_continuous(labels = percent_format()) +
+  labs(x = "Retailer", y = "Profit Margin", fill = "Retailer") +
+  ggtitle("Total Retailer Profit Margin by Region") +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        plot.title = element_text(size = 14, face = "bold"),
+        axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.title.y = element_text(size = 12),
+        legend.title = element_blank(),
+        legend.text = element_text(size = 10)) +
+  facet_wrap(~region)
+```
+
+  
+  Retailers with the top operating margin across each region:  
+  
+    • South: Sports Direct -    50.6%
+    • Northeast: West Gear -    43.5%
+    • Midwest: Amazon -   45.8%
+    • West: Sports Direct -   43.2%
+    • Southeast: Amazon -   45.1%  
+    
+\
+\
+\
+```{r echo=FALSE}
+ggplot(data = retailer_sales_2021, aes(x = retailer, y = operating_profit_millions, fill = retailer)) +
+  geom_col() +
+  scale_y_continuous(labels = dollar_format()) +
+  labs(x = "Retailer", y = "Profit (millions)", fill = "Retailer") +
+  ggtitle("Total Retailer Profit by Region") +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        plot.title = element_text(size = 14, face = "bold"),
+        axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.title.y = element_text(size = 12),
+        legend.title = element_blank(),
+        legend.text = element_text(size = 10)) +
+  facet_wrap(~region)
+
+```
+
+  
+  Retailers with the highest profit across each region:  
+  
+    • South: Sports Direct -    $28.1 million
+    • West: Kohl's -    $21.7 million
+    • Southeast: Foot Locker -    $18.7 million
+    • Midwest: Foot Locker -    $15.9 million
+    • Northeast: Foot Locker -    $15 million 
+    
+\
+\
+\
+2. *Which product categories have the highest sales and profit margin in each region?*\
+\
+\
+  
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+product_sales <- sales_2021 %>% 
+  group_by(product, region) %>% 
+  summarize(product_sales_m = sum(total_sales/1000000),
+            product_profit_m = sum(operating_profit/1000000),
+            operating_margin = mean(operating_margin*100)) %>% 
+  group_by(region) %>% 
+  slice_max(product_sales_m, n = 1, with_ties = FALSE) %>% 
+  select(region, product, product_sales_m, operating_margin, product_profit_m) %>% 
+  arrange(-product_sales_m,)
+```
+
+```{r echo=FALSE}
+ggplot(data = product_sales_2021, aes(x = product, y = total_sales_m, fill = product)) +
+  geom_col() +
+  scale_y_continuous(labels = dollar_format()) +
+  labs(x = "Product", y = "Sales (millions)", fill = "Product") +
+  ggtitle("Product Category Performance by Region") +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        plot.title = element_text(size = 14, face = "bold"),
+        axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.title.y = element_text(size = 12),
+        legend.title = element_blank(),
+        legend.text = element_text(size = 10),
+        panel.spacing = unit(1, "cm")) +
+  facet_wrap(~region)
+```
+\
+\
+  •	**Men’s Street Footwear** had the highest sales across **4 of 5 regions.** - **Northeast, West, Midwest, and       Southeast.**\
+  •	**Women’s apparel** had the highest sales in the Southeast region with **$13.1 million** in sales\
+\
+  Product categories with the highest sales across each region:  
+  
+    • Northeast: Men's Street Footwear -    $42.6 million
+    • West: Men's Street Footwear -   $39.3 million
+    • Midwest: Men's Street Footwear -    $35.8 million
+    • Southeast: Men's Street Footwear -    $29.1 million
+    • South: Women's Apparel -    $24.6 million
+\
+\
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+product_profit <- sales_2021 %>% 
+  group_by(product, region) %>% 
+  summarize(product_sales_m = sum(total_sales/1000000),
+            product_profit_m = sum(operating_profit/1000000),
+            operating_margin = mean(operating_margin)*100) %>% 
+  group_by(region) %>% 
+  select(product, product_sales_m, product_profit_m, operating_margin, region) %>% 
+  arrange(-product_sales_m) 
+```
+
+```{r echo=FALSE}
+ggplot(data = product_profit, aes(x = product, y = operating_margin/100, fill = product)) +
+  geom_col() +
+  scale_y_continuous(labels = percent_format()) +
+  labs(x = "Product Category", y = "Profit margin", fill = "Product") +
+  ggtitle("Product Category Operating Margin by Region") +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        plot.title = element_text(size = 14, face = "bold"),
+        axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.title.y = element_text(size = 12),
+        legend.title = element_blank(),
+        legend.text = element_text(size = 10),
+        panel.spacing = unit(1, "cm")) +
+  facet_wrap(~region)
+```
+\
+\
+  •	**Women’s apparel**  is the product category with the **highest operating margin** across 3 of 5 regions –         Northeast, South, Southeast, West\
+  •	**Women’s apparel** in the South region had an operating margin of **53.6%.**\
+\
+    Product categories with the highest operating margin across each region:  
+  
+    • South: Women's Apparel -    53.6%
+    • Midwest: Women's Apparel -    49.1%
+    • Southeast: Women's Apparel -    45.5%
+    • Northeast: Men's street footwear -    45.3% 
+    • West: : Men's Street Footwear -   42.3%
+\
+\
+
+#### Conclusions 
+\
+\
+**My final conclusions based on my analysis are:**\
+\
+  •	Footlocker has the highest total sales across all regions and retailers. Footlocker sells the most product in     3 of 5 regions.\
+  •	Sports direct in the South region has the highest profits among all retailers.\
+  •	Kohl’s in the West region had the highest total sales of all retailers.\
+  •	Men’s street footwear has the most sales, performing better than other categories in 4 of 5 regions.\
+  •	Women’s apparel sells extremely well in the South region, outselling men’s street footwear in this region.\
+  •	Women’s has the highest profit margins in 3 of 5 regions  
+\
+\
+
+#### Recommendations 
+\
+\
+**RETAILER INSIGHTS:**
+\
+  • Research what makes Footlocker the retailer with the most sales and seek to develop an                           understanding of their systems vs other retailers to see why there is a discrepancy. This discrepancy could      be caused by external factors, such as:\
+      o	Competition\
+      o	Regional economy, and\
+      o	Product fit and demand for each region.\
+\    
+    It could also include internal factors that Adidas and the retailer have control of such as:\
+      o	Supply chain issues, and\
+      o	Marketing, promotion, and sales strategies.\
+\
+\
+Studying these factors can help the team to understand why footlocker performs better than other retailers, and how parts of their systems and practices can be adopted by other retailers across all regions to improve their sales.\
+\
+  •	Investigate which systems and factors make Sports Direct in the South region the most profitable retailer        across all regions. There are other factors, apart from the points listed above, that could make Sports          Direct the most profitable retailer including:\
+      o	Cost of doing business\
+      o	Variations in the regional supply chain, transportation, and labour costs\
+      o	Distinct customer engagement and sales tactics\
+      o Variation in customer demographics, and product placement strategies\
+      o	Difference in pricing strategies.\
+\    
+  •	Study Kohl’s in the West region to understand how they achieve such high sales. This study would need to take     into consideration factors about the environment that the business operates in, such as the economy of           the region and the business’s target demographic, and factors that the retailer controls such as                 promotions, marketing, and sales strategies to understand how these contribute to the sales performance.\
+\
+Studying these factors can help the team to understand why these retailers perform better than other retailers, and how parts of their systems and practices can be adopted by other retailers across all regions to improve their sales and profitability where this is possible.  
+\
+\
+**PRODUCT CATEGORY INSIGHTS:**  
+\
+  •	Study the way men’s street footwear is approached to understand why it is the highest-selling         product range across 4 of the 5 regions. This could help the team understand how other product          category sales can be improved. These insights could be used to improve demand for other product        categories through the application of similar marketing and promotion strategies.\
+\
+    Factors that could affect the performance of other product categories include:\
+      o	Variations in sales and promotions strategies\
+      o	Different approaches to product placement and targeting consumer demographics.\
+      o	Unique customer engagement methods\
+  \
+  •	Study women’s apparel to understand why it has the highest profit margin in 3 of 5                      regions. Understanding what makes this product category as profitable as it is could help to improve     total profitability across all product categories and regions. The study would also need to             investigate what drives sales of women’s apparel in the South region as this product category has       the highest sales across the South region.\
+  
+    Additional data that could be included in this further analysis includes data about:
+    •	Regional labour cost and supply chain cost data
+    •	Data on marketing and promotions for different product categories and regions. 
+
+In conclusion, the next steps that I would suggest our stakeholders take are to study the topics brought up by the sales data insights to understand which factors external factors are affecting sales and which factors are within the control of Adidas and retailers and can be improved. This should give a clear picture of steps that can be taken to improve overall product sales and sales of specific product categories in different regions.  
+\
+\
+\
+Giyani Shangase\
+Portfolio website:https://giyanishangase.wixsite.com/portfolio \
+Linkedin: https://www.linkedin.com/in/giyani-shangase-725055261/ \
+Source: https://www.kaggle.com/datasets/heemalichaudhari/adidas-sales-dataset
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
